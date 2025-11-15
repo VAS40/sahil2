@@ -1,0 +1,17 @@
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #05060a;
+}
+
+button,
+select {
+  font-family: inherit;
+}

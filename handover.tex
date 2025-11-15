@@ -1,0 +1,112 @@
+\documentclass[11pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  urlcolor=black,
+  linkcolor=black
+}
+\setlength{\parskip}{0.7em}
+\setlength{\parindent}{0em}
+
+\title{WinZo AI Companion Handover Guide}
+\author{PlayPal AI | FastAPI + Vite prototype}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+This guide summarizes the state of the WinZo AI Companion MVP located at\break
+\texttt{/home/vas40/Competitions/GAIM/sahil2}. It covers setup, execution, known gaps, and the key AI prompting strategies so future maintainers can extend the build confidently.
+
+\section{Setup Instructions}
+\subsection{Prerequisites}
+\begin{itemize}[leftmargin=*]
+  \item Python 3.10+ with virtual environment support, Node.js 18+, npm.
+  \item \texttt{uvicorn} and \texttt{fastapi} are pulled in through \texttt{backend/requirements.txt}. Frontend uses Vite + React.
+  \item Optional: Google Gemini access token for higher-fidelity responses.
+\end{itemize}
+
+\subsection{Backend (FastAPI)}
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{cd backend}
+  \item \texttt{python -m venv .venv \\ source .venv/bin/activate}
+  \item \texttt{pip install -r requirements.txt}
+  \item Export environment variables:
+  \begin{itemize}
+    \item \texttt{GEMINI\_API\_KEY=} your key (optional; rule templates handle fallback).
+    \item \texttt{GEMINI\_MODEL=} override (defaults to \texttt{gemini-1.5-flash}).
+  \end{itemize}
+  \item Run \texttt{uvicorn app:app --reload --port 8000}.
+\end{enumerate}
+
+\subsection{Frontend (Vite + React)}
+\begin{enumerate}[leftmargin=*]
+  \item \texttt{cd frontend}
+  \item \texttt{npm install}
+  \item Optional \texttt{.env}: \texttt{VITE\_API\_BASE\_URL=http://localhost:8000}
+  \item Start dev server: \texttt{npm run dev} (served at \texttt{http://localhost:3000}).
+\end{enumerate}
+
+\section{Working Code Repository}
+\begin{tabular}{>{\bfseries}p{0.22\linewidth}p{0.72\linewidth}}
+Root layout & \texttt{backend/} (FastAPI service), \texttt{frontend/} (Vite app), \texttt{README.md} (quick start). \\
+Backend entry & \texttt{backend/app.py} exposes \texttt{/chat} POST endpoint that dispatches to \texttt{generate\_response}. \\
+AI logic & \texttt{backend/companion\_logic.py} handles prompt templating, Gemini integration, and deterministic fallbacks using \texttt{data.py}. \\
+Frontend shell & \texttt{frontend/src/App.jsx} wires up surfaces (Lounge, Squad, Matchmaking, Rewards). Each page embeds \texttt{ChatBox}. \\
+Reusable UI & \texttt{frontend/src/components/ChatBox.jsx} manages persona selectors, fetches the backend, renders Markdown, and surfaces smart nudges.
+\end{tabular}
+
+\section{How to Execute \& Test}
+\begin{enumerate}[leftmargin=*]
+  \item Launch backend and frontend using the commands above in two terminals.
+  \item Navigate to \texttt{http://localhost:3000}. Switch between navigation tabs to confirm that the same chat component adapts to each context.
+  \item Validate backend manually: send a POST to \texttt{/chat} with JSON payload
+  \texttt{\{ "companion": "Veer", "mood": "Pumped", "game": "Arcade", "performance": "WinStreak", "context": "matchmaking" \}} using curl or Thunder Client. Expect a JSON reply with \texttt{response}, \texttt{suggestions}, and \texttt{context} keys.
+  \item Smoke-test suggestions: in the UI select ``LoseStreak'' + ``Shooter'' and run ``Ask Companion''. Smart nudges should include ``Shift to a relaxed lobby'' and ``Warm-up aim mode'' cards.
+  \item Optional build checks: \texttt{npm run build} for the Vite bundle. No automated Python tests exist yet; manual regression revolves around API contract validation above.
+\end{enumerate}
+
+\section{Known Issues \& Troubleshooting}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Missing Gemini SDK or API key}: the backend gracefully falls back to deterministic templates. If Gemini access is required, install \texttt{google-generativeai} (already listed) and ensure the key is exported before starting uvicorn.
+  \item \textbf{CORS or network mismatch}: Vite runs on port 3000 with API defaulting to \texttt{http://localhost:8000}. Set \texttt{VITE\_API\_BASE\_URL} when hosting the backend elsewhere.
+  \item \textbf{Stale virtualenv}: deleting \texttt{backend/.venv} without deactivating may leave pip pointing at the wrong interpreter. Recreate the env and reinstall requirements.
+  \item \textbf{Node dependency drift}: if npm install fails in CI, remove \texttt{frontend/node\_modules} and re-run with the documented Node 18 baseline.
+  \item \textbf{Large language model latency}: Gemini calls are synchronous; long pauses block the API. Consider reducing prompt size or keeping the fallback template enabled for demos.
+\end{itemize}
+
+\section{Future Student / Instructor Workflows}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Extending personas}: add metadata in \texttt{backend/data.py} (persona, tone, style, sample lines) and update \texttt{ChatBox} select options to expose the new persona in the UI.
+  \item \textbf{New surfaces}: replicate \texttt{frontend/src/pages/MatchmakingLab.jsx} to create another tab. Pass a new \texttt{context} string so backend-specific copy can be tuned via \texttt{CONTEXT\_HINTS} and suggestion rules.
+  \item \textbf{LLM experimentation}: adjust \texttt{\_build\_gemini\_prompt} or route to other models by changing \texttt{GEMINI\_MODEL}. Keep prompts under 120 words as enforced by the current spec.
+  \item \textbf{Automated tests}: add FastAPI route tests (e.g., pytest + httpx) to verify fallback responses and suggestion combinations; add React component tests (Vitest) for ChatBox interactions.
+  \item \textbf{Demo collateral}: capture screen recordings across the four navigation tabs showing how suggestions adapt, and host them alongside this PDF when submitting future milestones.
+\end{itemize}
+
+\section{Prompt Library (Key Prompts)}
+\textbf{LLM prompt (Gemini)}:
+\begin{verbatim}
+You are <companion>, the <persona> companion inside WinZo's PlayPal AI.
+Stay <tone> with <style> cadence.
+Craft a concise coaching message (max 120 words) ...
+**<companion> checking in!**
+- Mode: ...
+- Energy Boost: ...
+- Smart Nudge: ...
+- Game/Reward Insight: ...
+Keep emojis tasteful (max 2).
+\end{verbatim}
+This lives in \texttt{backend/companion\_logic.py::\_build\_gemini\_prompt} and is fed into Google Gemini when API access is configured.
+
+\textbf{Rule-based template}: When Gemini is absent, the system stitches together persona examples, mood/performance/game mappings, and context-specific headers inside \texttt{\_template\_response}. This ensures deterministic replies for demos.
+
+\textbf{Suggestion rules}: \texttt{\_build\_suggestions} links user state to UI nudges (e.g., LoseStreak triggers ``Shift to a relaxed lobby'' + drill suggestions, ``Shooter'' mood adds warm-up guidance, ``matchmaking'' adds auto-match). Reuse these patterns when designing new automations.
+
+\vfill
+\textit{Prepared for project handover \textendash{} PDF generated via XeLaTeX.}
+
+\end{document}
